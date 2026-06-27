@@ -44,15 +44,80 @@ rather than required directly by the application. Composer still enforces its
 `php` constraint during resolution, so it **must** be listed in the allowlist
 explicitly — relaxing `laminas-mail` alone is not enough.
 
-## What it replaces
+## Alternatives — and why this plugin is the best fit
 
-Before this plugin, each package was carried as a `type: package` repository
-override in the application's `composer.json` — a hand-maintained copy of the
-package definition with the `php` constraint manually widened, plus a pinned
-version, dist URL, and SHA per package. That is five blocks of brittle,
-copy-pasted metadata that must be re-synced by hand on every upstream update.
+Every approach below can get a `~8.4.0`-capped Laminas package onto PHP 8.5. What
+separates them is the cost across **five** packages, a deploy pipeline, and every
+future PHP bump. The plugin is the only option that is surgical, honest, and
+low-maintenance at the same time.
 
-The plugin reduces all of it to a single declarative allowlist.
+### `composer install --ignore-platform-req=php+`
+
+Tells Composer to ignore the upper bound of the `php` platform requirement. It
+works, but:
+
+- it must be repeated on **every** `install` and `update`, including on each
+  deploy and CI run — miss it once and the build breaks;
+- it is **global** — the check is lifted for *every* package, so a genuinely
+  incompatible dependency slips through silently instead of failing loudly.
+
+The plugin relaxes only the five packages you name and leaves the platform check
+fully enforced everywhere else. Once it has run, the relaxed constraints live in
+`composer.lock`, so no flag is ever needed again.
+
+### `config.platform.php` set to `8.4`
+
+Tells Composer to pretend the platform is PHP 8.4 so the capped packages resolve.
+But the application was deliberately migrated **to** 8.5, and other dependencies
+legitimately require 8.5 — pinning the platform to 8.4 lies to the entire
+dependency tree and breaks resolution for everything that genuinely needs the
+newer runtime. The plugin never touches the reported platform version; your real
+PHP stays 8.5 for every other package.
+
+### `type: package` repository overrides
+
+This is exactly what the application used before — and what the migration to this
+plugin removed. Each of the five packages was re-declared by hand in
+`composer.json`: a full copy of its `require` block (with `php` widened), plus a
+pinned `version`, `dist` URL, and commit `reference`. That is five blocks of
+brittle, duplicated metadata that:
+
+- pin each package to one exact version, so you stop receiving upstream patch
+  releases until you manually bump the reference and SHA;
+- must be re-synced by hand on every upstream update — forever.
+
+The plugin replaces all five blocks with a single allowlist. The packages keep
+updating normally through Composer; only their `php` cap is widened.
+
+### Inline version aliasing
+
+Aliasing (`"laminas/laminas-tag": "2.13.0 as 2.99.0"`) rewrites the *version* a
+package presents — it does not touch `require.php`, so the platform check still
+rejects it. It is the wrong tool for a platform-requirement block, and where it
+is forced to fit it pins you to one exact version, just like the override above.
+
+### Forking each package
+
+Cloning all five repositories to edit one line of `composer.json` in each is the
+highest-maintenance option: you inherit responsibility for keeping every fork in
+sync with upstream security and bug-fix releases. The plugin needs no forks and
+no vendored code.
+
+### Why the plugin wins
+
+For the Laminas-on-8.5 case specifically, only the plugin is all of:
+
+- **Surgical** — only the five named packages are relaxed; every other platform
+  check stays fully enforced.
+- **Honest** — your real PHP version is never faked to the dependency tree.
+- **Version-agnostic** — nothing is pinned; as Laminas ships new tags of these
+  packages, the relaxation keeps applying to them automatically.
+- **Low-maintenance** — one declarative allowlist, with no copied dist URLs,
+  SHAs, or forks to re-sync.
+- **Flag-free after bootstrap** — the relaxed constraints bake into
+  `composer.lock`, so deploys and CI run a plain `composer install`.
+- **Bounded and reversible** — `^8.5` stops before 9.0, and you delete an entry
+  the moment upstream raises its own ceiling.
 
 ## Configuration
 

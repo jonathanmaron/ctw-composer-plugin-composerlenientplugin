@@ -115,6 +115,9 @@ Declare the packages to relax in your root `composer.json` `extra` block, namesp
 > is pulled in by another dependency rather than by your own `require`, it must still appear in
 > `packages` or it will block resolution.
 
+> **See also:** [README_LAMINAS.md](README_LAMINAS.md) — a real-world walkthrough of using this
+> plugin to run five Laminas packages on PHP 8.5, including how it compares to the alternatives.
+
 ## Bootstrapping (first install only)
 
 A plugin cannot rewrite the solver pool until it is itself installed and active, so the very
