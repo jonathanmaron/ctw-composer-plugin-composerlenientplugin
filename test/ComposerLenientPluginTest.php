@@ -132,7 +132,7 @@ final class ComposerLenientPluginTest extends TestCase
         self::assertFalse(Semver::satisfies('8.5.0', $php));
     }
 
-    public function testDefaultsToGreaterOrEqual85WhenAllowIsOmitted(): void
+    public function testDefaultsToCaret85WhenAllowIsOmitted(): void
     {
         $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
         $plugin  = $this->pluginWithConfig([
@@ -143,8 +143,10 @@ final class ComposerLenientPluginTest extends TestCase
 
         $php = $package->getRequires()['php']
             ->getPrettyConstraint();
-        self::assertStringContainsString('|| >=8.5', $php);
+        self::assertStringContainsString('|| ^8.5', $php);
         self::assertTrue(Semver::satisfies('8.5.0', $php));
+        self::assertTrue(Semver::satisfies('8.6.0', $php), 'later 8.x releases are permitted');
+        self::assertFalse(Semver::satisfies('9.0.0', $php), 'the next major is capped out');
     }
 
     public function testUnwrapsAnAliasPackageToRelaxTheUnderlyingPackage(): void
@@ -229,12 +231,12 @@ final class ComposerLenientPluginTest extends TestCase
         $root = new RootPackage('ctw/app', '1.0.0.0', '1.0.0');
         $root->setExtra($extra);
 
-        $composer = $this->createStub(Composer::class);
+        $composer = self::createStub(Composer::class);
         $composer->method('getPackage')
             ->willReturn($root);
 
         $plugin = new ComposerLenientPlugin();
-        $plugin->activate($composer, $this->createStub(IOInterface::class));
+        $plugin->activate($composer, self::createStub(IOInterface::class));
 
         return $plugin;
     }
@@ -244,7 +246,7 @@ final class ComposerLenientPluginTest extends TestCase
      */
     private function eventFor(array $packages): PrePoolCreateEvent
     {
-        $event = $this->createStub(PrePoolCreateEvent::class);
+        $event = self::createStub(PrePoolCreateEvent::class);
         $event->method('getPackages')
             ->willReturn($packages);
 

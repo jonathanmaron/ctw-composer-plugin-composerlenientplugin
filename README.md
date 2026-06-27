@@ -43,13 +43,13 @@ This plugin removes that specific blocker for the packages you trust — and onl
 | Forking the package to edit its `composer.json`                          | Highest-maintenance option; you inherit responsibility for keeping the fork in sync.                                                                                      |
 
 This plugin does the job generically and declaratively: name the packages once, and it widens
-their `php` constraint to `original || >=8.5` in memory during dependency resolution.
+their `php` constraint to `original || ^8.5` in memory during dependency resolution.
 
 ## How it works
 
 The plugin subscribes to Composer's `PrePoolCreateEvent`. As the solver builds its candidate
 package pool, the plugin finds each allowlisted package and replaces its `php` link with
-`original || <allow>` (default `>=8.5`), preserving the original lower bound. Aliases are
+`original || <allow>` (default `^8.5`), preserving the original lower bound. Aliases are
 unwrapped so the change lands on the real package definition.
 
 Because this happens during `composer update`, the widened constraint is written straight into
@@ -92,7 +92,7 @@ Declare the packages to relax in your root `composer.json` `extra` block, namesp
     "extra": {
         "ctw": {
             "ctw-composer-plugin-composerlenientplugin": {
-                "allow": ">=8.5",
+                "allow": "^8.5",
                 "packages": [
                     "laminas/laminas-cache-storage-adapter-filesystem",
                     "laminas/laminas-mail",
@@ -108,7 +108,7 @@ Declare the packages to relax in your root `composer.json` `extra` block, namesp
 
 | Key | Required | Default | Meaning |
 |-----|----------|---------|---------|
-| `allow` | no | `>=8.5` | The constraint OR-ed onto each allowlisted package's `php` requirement. Set it to `>=8.6` etc. for a future PHP. |
+| `allow` | no | `^8.5` | The constraint OR-ed onto each allowlisted package's `php` requirement. `^8.5` permits 8.5 up to (not including) 9.0; set it to `^8.6`, `>=8.6`, etc. for a different range. |
 | `packages` | yes | `[]` | Exact package names to relax. Anything not listed resolves untouched. |
 
 > **Tip:** list transitive dependencies explicitly. If a package such as `laminas/laminas-mail`
@@ -139,13 +139,13 @@ After the second update, the lock carries the widened constraint:
 ```bash
 php -r '$l=json_decode(file_get_contents("composer.lock"),true);
 foreach($l["packages"] as $p){ if($p["name"]==="laminas/laminas-tag"){ echo $p["require"]["php"],"\n"; } }'
-# ~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0 || >=8.5
+# ~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0 || ^8.5
 ```
 
 Run an update with `-v` to see exactly what was relaxed:
 
 ```
-ctw-composer-plugin-composerlenientplugin: relaxed php for laminas/laminas-tag -> ~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0 || >=8.5
+ctw-composer-plugin-composerlenientplugin: relaxed php for laminas/laminas-tag -> ~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0 || ^8.5
 ```
 
 ## FAQ
@@ -169,7 +169,8 @@ Yes — positively. Because the relaxed constraint is baked into `composer.lock`
 runs use a plain `composer install` with no `--ignore-platform-req` flag.
 
 **Can I use it for the next PHP, like 8.6 or 8.7?**
-Yes. Set `"allow": ">=8.6"` (or whatever you need). The default is `>=8.5`.
+Yes. Set `"allow": "^8.6"` (or whatever you need). The default is `^8.5`, which permits 8.5
+through the 8.x line but stops before 9.0, since a major release may introduce breaking changes.
 
 ## Testing
 

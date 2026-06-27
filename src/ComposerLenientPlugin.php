@@ -36,7 +36,7 @@ use Composer\Semver\VersionParser;
  *     "extra": {
  *         "ctw": {
  *             "ctw-composer-plugin-composerlenientplugin": {
- *                 "allow": ">=8.5",
+ *                 "allow": "^8.5",
  *                 "packages": [
  *                     "laminas/laminas-serializer",
  *                     "laminas/laminas-tag"
@@ -45,7 +45,8 @@ use Composer\Semver\VersionParser;
  *         }
  *     }
  *
- * `allow` defaults to `>=8.5` when omitted. Only packages named in `packages`
+ * `allow` defaults to `^8.5` when omitted (8.5 up to, but not including, 9.0).
+ * Only packages named in `packages`
  * are touched; everything else resolves untouched.
  *
  * Note: the allowlist targets tagged upstream releases. Branch/dev aliases are
@@ -68,7 +69,7 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
      * Default relaxation applied when
      * `extra.ctw.ctw-composer-plugin-composerlenientplugin.allow` is unset.
      */
-    private const string DEFAULT_ALLOW = '>=8.5';
+    private const string DEFAULT_ALLOW = '^8.5';
 
     private Composer $composer;
 
