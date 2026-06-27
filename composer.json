@@ -30,8 +30,10 @@
         "composer-plugin-api": "^2.0"
     },
     "require-dev": {
+        "ctw/ctw-qa": "dev-php85",
         "composer/composer": "^2.0",
-        "phpunit/phpunit": "^12.0 || ^13.0"
+        "phpunit/phpunit": "^12.0 || ^13.0",
+        "symfony/var-dumper": "^7.0"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
@@ -46,12 +48,31 @@
         }
     },
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
     },
     "extra": {
         "class": "Ctw\\Composer\\Plugin\\ComposerLenientPlugin"
     },
     "scripts": {
-        "test": "@php vendor/bin/phpunit"
+        "ecs": "php vendor/bin/ecs --clear-cache",
+        "ecs-fix": "php vendor/bin/ecs --clear-cache --fix",
+        "phpstan": "bash vendor/ctw/ctw-qa/bin/phpstan.sh",
+        "phpstan-baseline": "bash vendor/ctw/ctw-qa/bin/phpstan-baseline.sh",
+        "qa": [
+            "@rector",
+            "@ecs",
+            "@phpstan"
+        ],
+        "qa-fix": [
+            "@rector-fix",
+            "@ecs-fix",
+            "@phpstan"
+        ],
+        "rector": "php vendor/bin/rector process --clear-cache --dry-run",
+        "rector-fix": "php vendor/bin/rector process --clear-cache",
+        "test": "php vendor/bin/phpunit"
     }
 }
