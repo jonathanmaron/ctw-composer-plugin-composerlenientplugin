@@ -145,7 +145,7 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
         }
 
         return [
-            'allow' => $allow,
+            'allow'    => $allow,
             'packages' => $packages,
         ];
     }
