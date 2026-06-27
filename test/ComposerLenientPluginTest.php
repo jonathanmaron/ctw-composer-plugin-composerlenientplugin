@@ -24,12 +24,14 @@ final class ComposerLenientPluginTest extends TestCase
     /**
      * A package that sits on the plugin's allowlist throughout the suite.
      */
-    private const ALLOWED = 'laminas/laminas-tag';
+    private const string ALLOWED = 'laminas/laminas-tag';
 
     public function testSubscribesToThePrePoolCreateEvent(): void
     {
         self::assertSame(
-            [PluginEvents::PRE_POOL_CREATE => 'onPrePoolCreate'],
+            [
+                PluginEvents::PRE_POOL_CREATE => 'onPrePoolCreate',
+            ],
             ComposerLenientPlugin::getSubscribedEvents(),
         );
     }
@@ -37,11 +39,15 @@ final class ComposerLenientPluginTest extends TestCase
     public function testRelaxesPhpUpperBoundForAnAllowlistedPackage(): void
     {
         $package = $this->packageWithPhp(self::ALLOWED, '~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0');
-        $plugin  = $this->pluginWithConfig(['allow' => '>=8.5', 'packages' => [self::ALLOWED]]);
+        $plugin  = $this->pluginWithConfig([
+            'allow' => '>=8.5',
+            'packages' => [self::ALLOWED],
+        ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
-        $php = $package->getRequires()['php']->getPrettyConstraint();
+        $php = $package->getRequires()['php']
+            ->getPrettyConstraint();
         self::assertStringContainsString('|| >=8.5', $php);
         self::assertTrue(Semver::satisfies('8.5.0', $php), 'newer PHP is now permitted');
         self::assertTrue(Semver::satisfies('8.3.0', $php), 'original lower bound is preserved');
@@ -54,7 +60,10 @@ final class ComposerLenientPluginTest extends TestCase
     public function testLeavesPackagesOutsideTheAllowlistUntouched(): void
     {
         $package = $this->packageWithPhp('laminas/laminas-other', '~8.1.0 || ~8.2.0');
-        $plugin  = $this->pluginWithConfig(['allow' => '>=8.5', 'packages' => [self::ALLOWED]]);
+        $plugin  = $this->pluginWithConfig([
+            'allow' => '>=8.5',
+            'packages' => [self::ALLOWED],
+        ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
@@ -64,7 +73,10 @@ final class ComposerLenientPluginTest extends TestCase
     public function testDoesNothingWhenNoPackagesAreConfigured(): void
     {
         $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
-        $plugin  = $this->pluginWithConfig(['allow' => '>=8.5', 'packages' => []]);
+        $plugin  = $this->pluginWithConfig([
+            'allow' => '>=8.5',
+            'packages' => [],
+        ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
@@ -93,7 +105,10 @@ final class ComposerLenientPluginTest extends TestCase
                 '^3.6',
             ),
         ]);
-        $plugin = $this->pluginWithConfig(['allow' => '>=8.5', 'packages' => [self::ALLOWED]]);
+        $plugin = $this->pluginWithConfig([
+            'allow' => '>=8.5',
+            'packages' => [self::ALLOWED],
+        ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
@@ -103,11 +118,15 @@ final class ComposerLenientPluginTest extends TestCase
     public function testHonorsACustomAllowConstraint(): void
     {
         $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
-        $plugin  = $this->pluginWithConfig(['allow' => '>=8.6', 'packages' => [self::ALLOWED]]);
+        $plugin  = $this->pluginWithConfig([
+            'allow' => '>=8.6',
+            'packages' => [self::ALLOWED],
+        ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
-        $php = $package->getRequires()['php']->getPrettyConstraint();
+        $php = $package->getRequires()['php']
+            ->getPrettyConstraint();
         self::assertStringContainsString('|| >=8.6', $php);
         self::assertTrue(Semver::satisfies('8.6.0', $php));
         self::assertFalse(Semver::satisfies('8.5.0', $php));
@@ -116,11 +135,14 @@ final class ComposerLenientPluginTest extends TestCase
     public function testDefaultsToGreaterOrEqual85WhenAllowIsOmitted(): void
     {
         $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
-        $plugin  = $this->pluginWithConfig(['packages' => [self::ALLOWED]]);
+        $plugin  = $this->pluginWithConfig([
+            'packages' => [self::ALLOWED],
+        ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
-        $php = $package->getRequires()['php']->getPrettyConstraint();
+        $php = $package->getRequires()['php']
+            ->getPrettyConstraint();
         self::assertStringContainsString('|| >=8.5', $php);
         self::assertTrue(Semver::satisfies('8.5.0', $php));
     }
@@ -129,14 +151,14 @@ final class ComposerLenientPluginTest extends TestCase
     {
         $real   = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
         $alias  = new AliasPackage($real, '2.99.0.0', '2.99.0');
-        $plugin = $this->pluginWithConfig(['allow' => '>=8.5', 'packages' => [self::ALLOWED]]);
+        $plugin = $this->pluginWithConfig([
+            'allow' => '>=8.5',
+            'packages' => [self::ALLOWED],
+        ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$alias]));
 
-        self::assertStringContainsString(
-            '|| >=8.5',
-            $real->getRequires()['php']->getPrettyConstraint(),
-        );
+        self::assertStringContainsString('|| >=8.5', $real->getRequires()['php'] ->getPrettyConstraint());
     }
 
     public function testDoesNotReadTheLegacyFlatExtraKey(): void
@@ -144,7 +166,10 @@ final class ComposerLenientPluginTest extends TestCase
         $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
         // Configuration deliberately placed at the old, un-namespaced location.
         $plugin = $this->pluginWithExtra([
-            'ctw-composer-plugin-composerlenientplugin' => ['allow' => '>=8.5', 'packages' => [self::ALLOWED]],
+            'ctw-composer-plugin-composerlenientplugin' => [
+                'allow' => '>=8.5',
+                'packages' => [self::ALLOWED],
+            ],
         ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
@@ -155,14 +180,14 @@ final class ComposerLenientPluginTest extends TestCase
     public function testSkipsEmptyPackageNamesInTheAllowlist(): void
     {
         $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
-        $plugin  = $this->pluginWithConfig(['allow' => '>=8.5', 'packages' => ['', self::ALLOWED]]);
+        $plugin  = $this->pluginWithConfig([
+            'allow' => '>=8.5',
+            'packages' => ['', self::ALLOWED],
+        ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
-        self::assertStringContainsString(
-            '|| >=8.5',
-            $package->getRequires()['php']->getPrettyConstraint(),
-        );
+        self::assertStringContainsString('|| >=8.5', $package->getRequires()['php'] ->getPrettyConstraint());
     }
 
     /**
@@ -190,7 +215,9 @@ final class ComposerLenientPluginTest extends TestCase
     private function pluginWithConfig(array $config): ComposerLenientPlugin
     {
         return $this->pluginWithExtra([
-            'ctw' => ['ctw-composer-plugin-composerlenientplugin' => $config],
+            'ctw' => [
+                'ctw-composer-plugin-composerlenientplugin' => $config,
+            ],
         ]);
     }
 
@@ -203,7 +230,8 @@ final class ComposerLenientPluginTest extends TestCase
         $root->setExtra($extra);
 
         $composer = $this->createMock(Composer::class);
-        $composer->method('getPackage')->willReturn($root);
+        $composer->method('getPackage')
+            ->willReturn($root);
 
         $plugin = new ComposerLenientPlugin();
         $plugin->activate($composer, $this->createMock(IOInterface::class));
@@ -217,7 +245,8 @@ final class ComposerLenientPluginTest extends TestCase
     private function eventFor(array $packages): PrePoolCreateEvent
     {
         $event = $this->createMock(PrePoolCreateEvent::class);
-        $event->method('getPackages')->willReturn($packages);
+        $event->method('getPackages')
+            ->willReturn($packages);
 
         return $event;
     }

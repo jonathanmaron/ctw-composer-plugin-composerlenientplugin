@@ -57,18 +57,18 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
      * Root `extra` key namespacing CTW package configuration, so further CTW
      * packages can register their own sub-keys beside this plugin's.
      */
-    private const EXTRA_VENDOR_KEY = 'ctw';
+    private const string EXTRA_VENDOR_KEY = 'ctw';
 
     /**
      * Key under `extra.ctw` holding this plugin's configuration.
      */
-    private const EXTRA_PLUGIN_KEY = 'ctw-composer-plugin-composerlenientplugin';
+    private const string EXTRA_PLUGIN_KEY = 'ctw-composer-plugin-composerlenientplugin';
 
     /**
      * Default relaxation applied when
      * `extra.ctw.ctw-composer-plugin-composerlenientplugin.allow` is unset.
      */
-    private const DEFAULT_ALLOW = '>=8.5';
+    private const string DEFAULT_ALLOW = '>=8.5';
 
     private Composer $composer;
 
@@ -93,7 +93,9 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
      */
     public static function getSubscribedEvents(): array
     {
-        return [PluginEvents::PRE_POOL_CREATE => 'onPrePoolCreate'];
+        return [
+            PluginEvents::PRE_POOL_CREATE => 'onPrePoolCreate',
+        ];
     }
 
     public function onPrePoolCreate(PrePoolCreateEvent $event): void
@@ -127,20 +129,24 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
      */
     private function resolveConfig(): array
     {
-        $extra  = $this->composer->getPackage()->getExtra();
-        $vendor = (true === \is_array($extra[self::EXTRA_VENDOR_KEY] ?? null)) ? $extra[self::EXTRA_VENDOR_KEY] : [];
-        $raw    = (true === \is_array($vendor[self::EXTRA_PLUGIN_KEY] ?? null)) ? $vendor[self::EXTRA_PLUGIN_KEY] : [];
+        $extra  = $this->composer->getPackage()
+            ->getExtra();
+        $vendor = (\is_array($extra[self::EXTRA_VENDOR_KEY] ?? null)) ? $extra[self::EXTRA_VENDOR_KEY] : [];
+        $raw    = (\is_array($vendor[self::EXTRA_PLUGIN_KEY] ?? null)) ? $vendor[self::EXTRA_PLUGIN_KEY] : [];
 
-        $allow = (true === \is_string($raw['allow'] ?? null)) ? $raw['allow'] : self::DEFAULT_ALLOW;
+        $allow = (\is_string($raw['allow'] ?? null)) ? $raw['allow'] : self::DEFAULT_ALLOW;
 
         $packages = [];
         foreach ((array) ($raw['packages'] ?? []) as $name) {
-            if (true === \is_string($name) && '' !== $name) {
+            if (\is_string($name) && '' !== $name) {
                 $packages[] = $name;
             }
         }
 
-        return ['allow' => $allow, 'packages' => $packages];
+        return [
+            'allow' => $allow,
+            'packages' => $packages,
+        ];
     }
 
     /**
@@ -171,11 +177,8 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
      * Replaces the package's `php` requirement with `original || allow`,
      * preserving the original lower bound while permitting the newer PHP.
      */
-    private function relaxPhpRequirement(
-        Package $package,
-        ConstraintInterface $allow,
-        string $allowPretty
-    ): void {
+    private function relaxPhpRequirement(Package $package, ConstraintInterface $allow, string $allowPretty): void
+    {
         $requires = $package->getRequires();
 
         if (false === isset($requires['php'])) {
