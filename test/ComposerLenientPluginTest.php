@@ -229,12 +229,12 @@ final class ComposerLenientPluginTest extends TestCase
         $root = new RootPackage('ctw/app', '1.0.0.0', '1.0.0');
         $root->setExtra($extra);
 
-        $composer = $this->createMock(Composer::class);
+        $composer = $this->createStub(Composer::class);
         $composer->method('getPackage')
             ->willReturn($root);
 
         $plugin = new ComposerLenientPlugin();
-        $plugin->activate($composer, $this->createMock(IOInterface::class));
+        $plugin->activate($composer, $this->createStub(IOInterface::class));
 
         return $plugin;
     }
@@ -244,7 +244,7 @@ final class ComposerLenientPluginTest extends TestCase
      */
     private function eventFor(array $packages): PrePoolCreateEvent
     {
-        $event = $this->createMock(PrePoolCreateEvent::class);
+        $event = $this->createStub(PrePoolCreateEvent::class);
         $event->method('getPackages')
             ->willReturn($packages);
 
