@@ -1,5 +1,11 @@
 # Composer Lenient Plugin
 
+[![Latest Stable Version](https://poser.pugx.org/ctw/ctw-composer-plugin-composerlenientplugin/v/stable)](https://packagist.org/packages/ctw/ctw-composer-plugin-composerlenientplugin)
+[![GitHub Actions](https://github.com/jonathanmaron/ctw-composer-plugin-composerlenientplugin/actions/workflows/tests.yml/badge.svg)](https://github.com/jonathanmaron/ctw-composer-plugin-composerlenientplugin/actions/workflows/tests.yml)
+[![Scrutinizer Build](https://scrutinizer-ci.com/g/jonathanmaron/ctw-composer-plugin-composerlenientplugin/badges/build.png?b=master)](https://scrutinizer-ci.com/g/jonathanmaron/ctw-composer-plugin-composerlenientplugin/build-status/master)
+[![Scrutinizer Quality](https://scrutinizer-ci.com/g/jonathanmaron/ctw-composer-plugin-composerlenientplugin/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/jonathanmaron/ctw-composer-plugin-composerlenientplugin/?branch=master)
+[![Code Coverage](https://scrutinizer-ci.com/g/jonathanmaron/ctw-composer-plugin-composerlenientplugin/badges/coverage.png?b=master)](https://scrutinizer-ci.com/g/jonathanmaron/ctw-composer-plugin-composerlenientplugin/?branch=master)
+
 **Install Composer packages that cap their `php` requirement on a newer PHP — without
 `--ignore-platform-req`, without forking, and without editing anything in `vendor/`.**
 

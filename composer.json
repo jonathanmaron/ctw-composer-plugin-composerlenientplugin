@@ -1,0 +1,57 @@
+{
+    "name": "ctw/ctw-composer-plugin-composerlenientplugin",
+    "description": "Composer plugin that relaxes the upper bound of the PHP platform requirement for an allowlist of packages, so dependencies capped to an older PHP (e.g. ~8.4.0) install on a newer PHP (8.5, 8.6+) without --ignore-platform-req, forking, or editing vendor.",
+    "license": "BSD-3-Clause",
+    "type": "composer-plugin",
+    "version": "1.0.0",
+    "keywords": [
+        "composer",
+        "composer-plugin",
+        "plugin",
+        "php",
+        "platform",
+        "platform-requirement",
+        "platform-check",
+        "ignore-platform-req",
+        "ignore-platform-reqs",
+        "php-version",
+        "php-constraint",
+        "upper-bound",
+        "dependency-resolution",
+        "compatibility"
+    ],
+    "authors": [
+        {
+            "name": "CTW"
+        }
+    ],
+    "require": {
+        "php": ">=8.3",
+        "composer-plugin-api": "^2.0"
+    },
+    "require-dev": {
+        "composer/composer": "^2.0",
+        "phpunit/phpunit": "^12.0 || ^13.0"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "autoload": {
+        "psr-4": {
+            "Ctw\\Composer\\Plugin\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Ctw\\Composer\\Plugin\\Test\\": "test/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "class": "Ctw\\Composer\\Plugin\\ComposerLenientPlugin"
+    },
+    "scripts": {
+        "test": "@php vendor/bin/phpunit"
+    }
+}
