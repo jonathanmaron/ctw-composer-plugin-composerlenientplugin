@@ -251,7 +251,8 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
 
         $this->io->write(
             \sprintf(
-                '<info>ctw-composer-plugin-composerlenientplugin:</info> relaxed %s for <comment>%s</comment> -> %s',
+                '<info>%s:</info> relaxed %s for <comment>%s</comment> -> %s',
+                self::EXTRA_PLUGIN_KEY,
                 $require,
                 $package->getName(),
                 $requires[$require]->getPrettyConstraint(),
