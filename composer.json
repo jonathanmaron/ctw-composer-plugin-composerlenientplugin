@@ -1,9 +1,8 @@
 {
     "name": "ctw/ctw-composer-plugin-composerlenientplugin",
-    "description": "Composer plugin that relaxes the upper bound of the PHP platform requirement for an allowlist of packages, so dependencies capped to an older PHP (e.g. ~8.4.0) install on a newer PHP (8.5, 8.6+) without --ignore-platform-req, forking, or editing vendor.",
+    "description": "Composer plugin that relaxes the upper bound of the PHP platform, or of any package requirement, for an allowlist of packages, so dependencies capped to an older PHP (e.g. ~8.4.0) or an older dependency major (e.g. laminas/laminas-servicemanager ^3) resolve on a newer one without --ignore-platform-req, forking, or editing vendor.",
     "license": "BSD-3-Clause",
     "type": "composer-plugin",
-    "version": "1.0.0",
     "keywords": [
         "composer",
         "composer-plugin",
@@ -18,6 +17,8 @@
         "php-constraint",
         "upper-bound",
         "dependency-resolution",
+        "constraint-relaxation",
+        "requirement-relaxation",
         "compatibility"
     ],
     "require": {

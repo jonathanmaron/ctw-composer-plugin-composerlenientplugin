@@ -17,37 +17,59 @@ use Composer\Semver\Constraint\MultiConstraint;
 use Composer\Semver\VersionParser;
 
 /**
- * Relaxes the upper bound of selected packages' `php` requirement at the moment
- * the dependency solver pool is built.
+ * Relaxes the upper bound of selected packages' requirements at the moment the
+ * dependency solver pool is built.
  *
- * Some upstream packages run cleanly on a newer PHP but cap their declared
- * `php` constraint (e.g. `~8.4.0`), which blocks installation even though the
- * code is compatible. This plugin widens that constraint in memory for an
- * explicit allowlist, leaving every other platform requirement enforced and
- * the real platform version untouched — so packages that genuinely require the
- * newer PHP still resolve normally.
+ * A requirement is widened to `original || allow`, preserving the original lower
+ * bound. Two kinds of requirement are handled identically:
+ *
+ *  - The `php` platform requirement. Some upstream packages run cleanly on a
+ *    newer PHP but cap their declared `php` constraint (e.g. `~8.4.0`), which
+ *    blocks installation even though the code is compatible.
+ *  - Any other package requirement (e.g. `laminas/laminas-servicemanager`). Some
+ *    packages are already compatible with a newer major of a dependency but have
+ *    not yet released the widened constraint (the upstream change is a one-line
+ *    `composer.json` edit on a not-yet-tagged branch). This lets the newer major
+ *    resolve without forking or editing vendor.
+ *
+ * Packages that genuinely require the newer version still resolve normally, and
+ * the real platform version is never changed.
  *
  * The relaxation is written into `composer.lock` during `composer update`, so
  * downstream `composer install` (deploys) read the relaxed constraint from the
- * lock and pass the platform check without any flag.
+ * lock and pass resolution without any flag.
  *
- * Configuration lives in the root package `extra` block:
+ * Configuration is a list of rules under the root package `extra` block. `php`
+ * is just another requirement, so every rule has the same shape — there is no
+ * special case and no default; all values are set explicitly:
  *
  *     "extra": {
  *         "ctw": {
- *             "ctw-composer-plugin-composerlenientplugin": {
- *                 "allow": "^8.5",
- *                 "packages": [
- *                     "laminas/laminas-serializer",
- *                     "laminas/laminas-tag"
- *                 ]
- *             }
+ *             "ctw-composer-plugin-composerlenientplugin": [
+ *                 {
+ *                     "require": "php",
+ *                     "allow": "^8.5",
+ *                     "packages": [
+ *                         "laminas/laminas-serializer",
+ *                         "laminas/laminas-tag"
+ *                     ]
+ *                 },
+ *                 {
+ *                     "require": "laminas/laminas-servicemanager",
+ *                     "allow": "^4.0",
+ *                     "packages": [
+ *                         "laminas/laminas-form",
+ *                         "laminas/laminas-inputfilter"
+ *                     ]
+ *                 }
+ *             ]
  *         }
  *     }
  *
- * `allow` defaults to `^8.5` when omitted (8.5 up to, but not including, 9.0).
- * Only packages named in `packages`
- * are touched; everything else resolves untouched.
+ * Each rule names the requirement to widen (`require`), the constraint to OR onto
+ * it (`allow`), and the `packages` whose declared constraint on that requirement
+ * should be widened. A rule missing any of the three, or naming a requirement a
+ * package does not declare, is skipped.
  *
  * Note: the allowlist targets tagged upstream releases. Branch/dev aliases are
  * intentionally out of scope, as the affected packages resolve to plain tags.
@@ -64,12 +86,6 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
      * Key under `extra.ctw` holding this plugin's configuration.
      */
     private const string EXTRA_PLUGIN_KEY = 'ctw-composer-plugin-composerlenientplugin';
-
-    /**
-     * Default relaxation applied when
-     * `extra.ctw.ctw-composer-plugin-composerlenientplugin.allow` is unset.
-     */
-    private const string DEFAULT_ALLOW = '^8.5';
 
     private Composer $composer;
 
@@ -101,22 +117,23 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
 
     public function onPrePoolCreate(PrePoolCreateEvent $event): void
     {
-        $config = $this->resolveConfig();
+        $rules = $this->resolveRules();
 
-        if ([] === $config['packages']) {
+        if ([] === $rules) {
             return;
         }
 
-        $allow    = (new VersionParser())->parseConstraints($config['allow']);
         $packages = $event->getPackages();
 
         foreach ($packages as $package) {
             foreach ($this->mutableTargets($package) as $target) {
-                if (false === \in_array($target->getName(), $config['packages'], true)) {
-                    continue;
-                }
+                $name = $target->getName();
 
-                $this->relaxPhpRequirement($target, $allow, $config['allow']);
+                foreach ($rules as $rule) {
+                    if (\in_array($name, $rule['packages'], true)) {
+                        $this->relaxRequirement($target, $rule['require'], $rule['allow'], $rule['allowPretty']);
+                    }
+                }
             }
         }
 
@@ -124,30 +141,60 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
     }
 
     /**
-     * Resolves the allowlist and relaxation target from the root package extra.
+     * Resolves the list of relaxation rules from the root package extra.
      *
-     * @return array{allow: string, packages: list<string>}
+     * @return list<array{require: string, allow: ConstraintInterface, allowPretty: string, packages: list<string>}>
      */
-    private function resolveConfig(): array
+    private function resolveRules(): array
     {
         $extra  = $this->composer->getPackage()
             ->getExtra();
         $vendor = (\is_array($extra[self::EXTRA_VENDOR_KEY] ?? null)) ? $extra[self::EXTRA_VENDOR_KEY] : [];
         $raw    = (\is_array($vendor[self::EXTRA_PLUGIN_KEY] ?? null)) ? $vendor[self::EXTRA_PLUGIN_KEY] : [];
 
-        $allow = (\is_string($raw['allow'] ?? null)) ? $raw['allow'] : self::DEFAULT_ALLOW;
+        $parser = new VersionParser();
 
-        $packages = [];
-        foreach ((array) ($raw['packages'] ?? []) as $name) {
+        $rules = [];
+        foreach ($raw as $entry) {
+            if (false === \is_array($entry)) {
+                continue;
+            }
+
+            $require = (\is_string($entry['require'] ?? null)) ? $entry['require'] : '';
+            $allow   = (\is_string($entry['allow'] ?? null)) ? $entry['allow'] : '';
+            if ('' === $require || '' === $allow) {
+                continue;
+            }
+
+            $packages = $this->parseNames($entry['packages'] ?? []);
+            if ([] === $packages) {
+                continue;
+            }
+
+            $rules[] = [
+                'require'     => $require,
+                'allow'       => $parser->parseConstraints($allow),
+                'allowPretty' => $allow,
+                'packages'    => $packages,
+            ];
+        }
+
+        return $rules;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseNames(mixed $raw): array
+    {
+        $names = [];
+        foreach ((array) $raw as $name) {
             if (\is_string($name) && '' !== $name) {
-                $packages[] = $name;
+                $names[] = $name;
             }
         }
 
-        return [
-            'allow'    => $allow,
-            'packages' => $packages,
-        ];
+        return $names;
     }
 
     /**
@@ -175,34 +222,39 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
     }
 
     /**
-     * Replaces the package's `php` requirement with `original || allow`,
-     * preserving the original lower bound while permitting the newer PHP.
+     * Replaces the named requirement with `original || allow`, preserving the
+     * original lower bound while permitting the newer version.
      */
-    private function relaxPhpRequirement(Package $package, ConstraintInterface $allow, string $allowPretty): void
-    {
+    private function relaxRequirement(
+        Package $package,
+        string $require,
+        ConstraintInterface $allow,
+        string $allowPretty
+    ): void {
         $requires = $package->getRequires();
 
-        if (false === isset($requires['php'])) {
+        if (false === isset($requires[$require])) {
             return;
         }
 
-        $php = $requires['php'];
+        $link = $requires[$require];
 
-        $requires['php'] = new Link(
-            $php->getSource(),
-            'php',
-            MultiConstraint::create([$php->getConstraint(), $allow], false),
+        $requires[$require] = new Link(
+            $link->getSource(),
+            $require,
+            MultiConstraint::create([$link->getConstraint(), $allow], false),
             Link::TYPE_REQUIRE,
-            $php->getPrettyConstraint() . ' || ' . $allowPretty,
+            $link->getPrettyConstraint() . ' || ' . $allowPretty,
         );
 
         $package->setRequires($requires);
 
         $this->io->write(
             \sprintf(
-                '<info>ctw-composer-plugin-composerlenientplugin:</info> relaxed php for <comment>%s</comment> -> %s',
+                '<info>ctw-composer-plugin-composerlenientplugin:</info> relaxed %s for <comment>%s</comment> -> %s',
+                $require,
                 $package->getName(),
-                $requires['php']->getPrettyConstraint(),
+                $requires[$require]->getPrettyConstraint(),
             ),
             true,
             IOInterface::VERBOSE,

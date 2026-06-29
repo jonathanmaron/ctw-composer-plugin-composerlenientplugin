@@ -12,6 +12,11 @@ dependency-solver pool-build time. It lets a package that is capped at, say, `~8
 cleanly on **PHP 8.5, 8.6, and later**, while every other platform check stays fully enforced
 and your real PHP version is never faked.
 
+Since **2.x** the same mechanism widens **any package requirement**, not only `php` — for
+example letting a package that declares `laminas/laminas-servicemanager: ^3` also resolve
+against `^4` while upstream finishes a not-yet-released major bump. `php` and package
+requirements share one uniform config format; see [Configuration](#configuration) below.
+
 ## Does this fix your problem?
 
 If `composer install` or `composer update` fails on a newer PHP with a message like this:
@@ -84,36 +89,67 @@ A Composer plugin must be allow-listed before Composer will execute it:
 
 ## Configuration
 
-Declare the packages to relax in your root `composer.json` `extra` block, namespaced under
-`ctw`:
+Configuration is a **list of rules** in your root `composer.json` `extra` block, namespaced
+under `ctw`. Every rule has the same shape — `php` is just another requirement, so there is no
+special case and no default; set all three keys explicitly:
 
 ```json
 {
     "extra": {
         "ctw": {
-            "ctw-composer-plugin-composerlenientplugin": {
-                "allow": "^8.5",
-                "packages": [
-                    "laminas/laminas-cache-storage-adapter-filesystem",
-                    "laminas/laminas-mail",
-                    "laminas/laminas-mime",
-                    "laminas/laminas-serializer",
-                    "laminas/laminas-tag"
-                ]
-            }
+            "ctw-composer-plugin-composerlenientplugin": [
+                {
+                    "require": "php",
+                    "allow": "^8.5",
+                    "packages": [
+                        "laminas/laminas-cache-storage-adapter-filesystem",
+                        "laminas/laminas-mail",
+                        "laminas/laminas-mime",
+                        "laminas/laminas-serializer",
+                        "laminas/laminas-tag"
+                    ]
+                },
+                {
+                    "require": "laminas/laminas-servicemanager",
+                    "allow": "^4.0",
+                    "packages": [
+                        "laminas/laminas-form",
+                        "laminas/laminas-inputfilter",
+                        "laminas/laminas-i18n",
+                        "laminas/laminas-router"
+                    ]
+                }
+            ]
         }
     }
 }
 ```
 
-| Key | Required | Default | Meaning |
-|-----|----------|---------|---------|
-| `allow` | no | `^8.5` | The constraint OR-ed onto each allowlisted package's `php` requirement. `^8.5` permits 8.5 up to (not including) 9.0; set it to `^8.6`, `>=8.6`, etc. for a different range. |
-| `packages` | yes | `[]` | Exact package names to relax. Anything not listed resolves untouched. |
+Each rule has three keys, all required:
+
+| Key | Meaning |
+|-----|---------|
+| `require` | The requirement to widen. Use `php` for the platform requirement, or a package name such as `laminas/laminas-servicemanager`. |
+| `allow` | The constraint OR-ed onto that requirement, e.g. `^8.5` or `^4.0`. `^8.5` permits 8.5 up to (not including) 9.0. |
+| `packages` | Exact package names whose declared constraint on `require` should be widened. A package that does not declare `require` is skipped. |
+
+A rule missing any key — or whose `packages` list is empty — is ignored.
+
+The first rule above widens the `php` constraint of five packages capped at `~8.4.0` so they
+install on PHP 8.5. The second turns `laminas/laminas-form`'s declared
+`laminas/laminas-servicemanager: ^3.22.1` into `^3.22.1 || ^4.0` in memory, so a
+servicemanager-4 stack resolves without forking the package. In both cases the original lower
+bound is preserved, the widened constraint is baked into `composer.lock`, and packages outside a
+rule's `packages` list are untouched.
 
 > **Tip:** list transitive dependencies explicitly. If a package such as `laminas/laminas-mail`
-> is pulled in by another dependency rather than by your own `require`, it must still appear in
-> `packages` or it will block resolution.
+> is pulled in by another dependency rather than by your own `require`, it must still appear in a
+> rule's `packages` or it will block resolution.
+
+> **Use with care:** widening a non-`php` requirement only changes resolution — it does not make
+> incompatible *code* work. Use it when you have evidence the package already runs against the
+> newer version (for instance, upstream's own CI exercises it on an unreleased branch), and
+> remove the rule once a properly-tagged release ships.
 
 > **See also:** [README_LAMINAS.md](README_LAMINAS.md) — a real-world walkthrough of using this
 > plugin to run five Laminas packages on PHP 8.5, including how it compares to the alternatives.
@@ -188,11 +224,14 @@ constraint logic.
 
 ## Caveats
 
-- The plugin only **widens** the `php` requirement, and only by an OR (`|| <allow>`). It never
-  narrows or removes any other constraint, and never touches non-`php` requirements.
-- Only the packages you name are affected; the allowlist is deliberately explicit.
-- The allowlist targets tagged upstream releases. Branch/dev aliases are out of scope, as the
-  affected packages resolve to plain tags.
+- The plugin only **widens** a requirement, and only by an OR (`|| <allow>`). It never narrows
+  or removes a constraint.
+- Widening a non-`php` requirement changes only *resolution*; it cannot make incompatible code
+  work. Use such a rule only when the package already runs against the newer version, and drop it
+  once a tagged release ships.
+- Only the packages a rule names are affected; every rule's allowlist is deliberately explicit.
+- Rules target tagged upstream releases. Branch/dev aliases are out of scope, as the affected
+  packages resolve to plain tags.
 
 ## Keywords
 

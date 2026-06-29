@@ -22,7 +22,7 @@ use PHPUnit\Framework\TestCase;
 final class ComposerLenientPluginTest extends TestCase
 {
     /**
-     * A package that sits on the plugin's allowlist throughout the suite.
+     * A package that sits on a rule's allowlist throughout the suite.
      */
     private const string ALLOWED = 'laminas/laminas-tag';
 
@@ -36,12 +36,15 @@ final class ComposerLenientPluginTest extends TestCase
         );
     }
 
-    public function testRelaxesPhpUpperBoundForAnAllowlistedPackage(): void
+    public function testRelaxesThePhpUpperBoundForAnAllowlistedPackage(): void
     {
-        $package = $this->packageWithPhp(self::ALLOWED, '~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0');
-        $plugin  = $this->pluginWithConfig([
-            'allow' => '>=8.5',
-            'packages' => [self::ALLOWED],
+        $package = $this->packageWithRequire(self::ALLOWED, 'php', '~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0');
+        $plugin  = $this->pluginWithRules([
+            [
+                'require' => 'php',
+                'allow' => '>=8.5',
+                'packages' => [self::ALLOWED],
+            ],
         ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
@@ -57,12 +60,78 @@ final class ComposerLenientPluginTest extends TestCase
         );
     }
 
+    public function testRelaxesAnArbitraryRequirementForAnAllowlistedPackage(): void
+    {
+        $package = $this->packageWithRequire('laminas/laminas-form', 'laminas/laminas-servicemanager', '^3.22.1');
+        $plugin  = $this->pluginWithRules([
+            [
+                'require' => 'laminas/laminas-servicemanager',
+                'allow' => '^4.0',
+                'packages' => ['laminas/laminas-form'],
+            ],
+        ]);
+
+        $plugin->onPrePoolCreate($this->eventFor([$package]));
+
+        $constraint = $package->getRequires()['laminas/laminas-servicemanager']
+            ->getPrettyConstraint();
+        self::assertStringContainsString('|| ^4.0', $constraint);
+        self::assertTrue(Semver::satisfies('4.5.0', $constraint), 'servicemanager 4 is now permitted');
+        self::assertTrue(Semver::satisfies('3.24.0', $constraint), 'the original range is preserved');
+        self::assertFalse(Semver::satisfies('4.5.0', '^3.22.1'), 'sanity: the original constraint blocked v4');
+    }
+
+    public function testAppliesEveryMatchingRuleToTheSamePackage(): void
+    {
+        $package = new Package('laminas/laminas-form', '1.0.0.0', '1.0.0');
+        $package->setRequires([
+            'php' => new Link(
+                'laminas/laminas-form',
+                'php',
+                (new VersionParser())->parseConstraints('~8.4.0'),
+                Link::TYPE_REQUIRE,
+                '~8.4.0',
+            ),
+            'laminas/laminas-servicemanager' => new Link(
+                'laminas/laminas-form',
+                'laminas/laminas-servicemanager',
+                (new VersionParser())->parseConstraints('^3.22.1'),
+                Link::TYPE_REQUIRE,
+                '^3.22.1',
+            ),
+        ]);
+        $plugin = $this->pluginWithRules([
+            [
+                'require' => 'php',
+                'allow' => '>=8.5',
+                'packages' => ['laminas/laminas-form'],
+            ],
+            [
+                'require' => 'laminas/laminas-servicemanager',
+                'allow' => '^4.0',
+                'packages' => ['laminas/laminas-form'],
+            ],
+        ]);
+
+        $plugin->onPrePoolCreate($this->eventFor([$package]));
+
+        self::assertStringContainsString('|| >=8.5', $package->getRequires()['php']->getPrettyConstraint());
+        self::assertStringContainsString(
+            '|| ^4.0',
+            $package->getRequires()['laminas/laminas-servicemanager']
+                ->getPrettyConstraint(),
+        );
+    }
+
     public function testLeavesPackagesOutsideTheAllowlistUntouched(): void
     {
-        $package = $this->packageWithPhp('laminas/laminas-other', '~8.1.0 || ~8.2.0');
-        $plugin  = $this->pluginWithConfig([
-            'allow' => '>=8.5',
-            'packages' => [self::ALLOWED],
+        $package = $this->packageWithRequire('laminas/laminas-other', 'php', '~8.1.0 || ~8.2.0');
+        $plugin  = $this->pluginWithRules([
+            [
+                'require' => 'php',
+                'allow' => '>=8.5',
+                'packages' => [self::ALLOWED],
+            ],
         ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
@@ -70,13 +139,10 @@ final class ComposerLenientPluginTest extends TestCase
         self::assertSame('~8.1.0 || ~8.2.0', $package->getRequires()['php']->getPrettyConstraint());
     }
 
-    public function testDoesNothingWhenNoPackagesAreConfigured(): void
+    public function testDoesNothingWhenNoRulesAreConfigured(): void
     {
-        $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
-        $plugin  = $this->pluginWithConfig([
-            'allow' => '>=8.5',
-            'packages' => [],
-        ]);
+        $package = $this->packageWithRequire(self::ALLOWED, 'php', '~8.4.0');
+        $plugin  = $this->pluginWithRules([]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
@@ -85,7 +151,7 @@ final class ComposerLenientPluginTest extends TestCase
 
     public function testDoesNothingWhenTheExtraConfigIsMissing(): void
     {
-        $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
+        $package = $this->packageWithRequire(self::ALLOWED, 'php', '~8.4.0');
         $plugin  = $this->pluginWithExtra([]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
@@ -93,34 +159,32 @@ final class ComposerLenientPluginTest extends TestCase
         self::assertSame('~8.4.0', $package->getRequires()['php']->getPrettyConstraint());
     }
 
-    public function testIgnoresAnAllowlistedPackageWithoutAPhpRequirement(): void
+    public function testIgnoresAnAllowlistedPackageThatDoesNotDeclareTheRequirement(): void
     {
-        $package = new Package(self::ALLOWED, '2.13.0.0', '2.13.0');
-        $package->setRequires([
-            'laminas/laminas-stdlib' => new Link(
-                self::ALLOWED,
-                'laminas/laminas-stdlib',
-                (new VersionParser())->parseConstraints('^3.6'),
-                Link::TYPE_REQUIRE,
-                '^3.6',
-            ),
-        ]);
-        $plugin = $this->pluginWithConfig([
-            'allow' => '>=8.5',
-            'packages' => [self::ALLOWED],
+        $package = $this->packageWithRequire(self::ALLOWED, 'laminas/laminas-stdlib', '^3.6');
+        $plugin  = $this->pluginWithRules([
+            [
+                'require' => 'php',
+                'allow' => '>=8.5',
+                'packages' => [self::ALLOWED],
+            ],
         ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
         self::assertArrayNotHasKey('php', $package->getRequires());
+        self::assertSame('^3.6', $package->getRequires()['laminas/laminas-stdlib']->getPrettyConstraint());
     }
 
-    public function testHonorsACustomAllowConstraint(): void
+    public function testHonorsThePerRuleAllowConstraint(): void
     {
-        $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
-        $plugin  = $this->pluginWithConfig([
-            'allow' => '>=8.6',
-            'packages' => [self::ALLOWED],
+        $package = $this->packageWithRequire(self::ALLOWED, 'php', '~8.4.0');
+        $plugin  = $this->pluginWithRules([
+            [
+                'require' => 'php',
+                'allow' => '>=8.6',
+                'packages' => [self::ALLOWED],
+            ],
         ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
@@ -132,30 +196,16 @@ final class ComposerLenientPluginTest extends TestCase
         self::assertFalse(Semver::satisfies('8.5.0', $php));
     }
 
-    public function testDefaultsToCaret85WhenAllowIsOmitted(): void
-    {
-        $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
-        $plugin  = $this->pluginWithConfig([
-            'packages' => [self::ALLOWED],
-        ]);
-
-        $plugin->onPrePoolCreate($this->eventFor([$package]));
-
-        $php = $package->getRequires()['php']
-            ->getPrettyConstraint();
-        self::assertStringContainsString('|| ^8.5', $php);
-        self::assertTrue(Semver::satisfies('8.5.0', $php));
-        self::assertTrue(Semver::satisfies('8.6.0', $php), 'later 8.x releases are permitted');
-        self::assertFalse(Semver::satisfies('9.0.0', $php), 'the next major is capped out');
-    }
-
     public function testUnwrapsAnAliasPackageToRelaxTheUnderlyingPackage(): void
     {
-        $real   = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
+        $real   = $this->packageWithRequire(self::ALLOWED, 'php', '~8.4.0');
         $alias  = new AliasPackage($real, '2.99.0.0', '2.99.0');
-        $plugin = $this->pluginWithConfig([
-            'allow' => '>=8.5',
-            'packages' => [self::ALLOWED],
+        $plugin = $this->pluginWithRules([
+            [
+                'require' => 'php',
+                'allow' => '>=8.5',
+                'packages' => [self::ALLOWED],
+            ],
         ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$alias]));
@@ -163,14 +213,17 @@ final class ComposerLenientPluginTest extends TestCase
         self::assertStringContainsString('|| >=8.5', $real->getRequires()['php'] ->getPrettyConstraint());
     }
 
-    public function testDoesNotReadTheLegacyFlatExtraKey(): void
+    public function testDoesNotReadTheLegacyUnNamespacedExtraKey(): void
     {
-        $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
+        $package = $this->packageWithRequire(self::ALLOWED, 'php', '~8.4.0');
         // Configuration deliberately placed at the old, un-namespaced location.
         $plugin = $this->pluginWithExtra([
             'ctw-composer-plugin-composerlenientplugin' => [
-                'allow' => '>=8.5',
-                'packages' => [self::ALLOWED],
+                [
+                    'require' => 'php',
+                    'allow' => '>=8.5',
+                    'packages' => [self::ALLOWED],
+                ],
             ],
         ]);
 
@@ -179,12 +232,15 @@ final class ComposerLenientPluginTest extends TestCase
         self::assertSame('~8.4.0', $package->getRequires()['php']->getPrettyConstraint());
     }
 
-    public function testSkipsEmptyPackageNamesInTheAllowlist(): void
+    public function testSkipsEmptyPackageNamesInARule(): void
     {
-        $package = $this->packageWithPhp(self::ALLOWED, '~8.4.0');
-        $plugin  = $this->pluginWithConfig([
-            'allow' => '>=8.5',
-            'packages' => ['', self::ALLOWED],
+        $package = $this->packageWithRequire(self::ALLOWED, 'php', '~8.4.0');
+        $plugin  = $this->pluginWithRules([
+            [
+                'require' => 'php',
+                'allow' => '>=8.5',
+                'packages' => ['', self::ALLOWED],
+            ],
         ]);
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
@@ -192,19 +248,43 @@ final class ComposerLenientPluginTest extends TestCase
         self::assertStringContainsString('|| >=8.5', $package->getRequires()['php'] ->getPrettyConstraint());
     }
 
+    public function testSkipsRulesMissingRequireAllowOrPackages(): void
+    {
+        $package = $this->packageWithRequire('laminas/laminas-form', 'laminas/laminas-servicemanager', '^3.0');
+        $plugin  = $this->pluginWithRules([
+            [
+                'allow' => '^4.0',
+                'packages' => ['laminas/laminas-form'],
+            ],
+            [
+                'require' => 'laminas/laminas-servicemanager',
+                'packages' => ['laminas/laminas-form'],
+            ],
+            [
+                'require' => 'laminas/laminas-servicemanager',
+                'allow' => '^4.0',
+                'packages' => [],
+            ],
+        ]);
+
+        $plugin->onPrePoolCreate($this->eventFor([$package]));
+
+        self::assertSame('^3.0', $package->getRequires()['laminas/laminas-servicemanager']->getPrettyConstraint());
+    }
+
     /**
-     * Builds a concrete package carrying a single `php` requirement.
+     * Builds a concrete package carrying a single requirement.
      */
-    private function packageWithPhp(string $name, string $phpConstraint): Package
+    private function packageWithRequire(string $name, string $require, string $constraint): Package
     {
         $package = new Package($name, '1.0.0.0', '1.0.0');
         $package->setRequires([
-            'php' => new Link(
+            $require => new Link(
                 $name,
-                'php',
-                (new VersionParser())->parseConstraints($phpConstraint),
+                $require,
+                (new VersionParser())->parseConstraints($constraint),
                 Link::TYPE_REQUIRE,
-                $phpConstraint,
+                $constraint,
             ),
         ]);
 
@@ -212,13 +292,13 @@ final class ComposerLenientPluginTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $config
+     * @param list<array<string, mixed>> $rules
      */
-    private function pluginWithConfig(array $config): ComposerLenientPlugin
+    private function pluginWithRules(array $rules): ComposerLenientPlugin
     {
         return $this->pluginWithExtra([
             'ctw' => [
-                'ctw-composer-plugin-composerlenientplugin' => $config,
+                'ctw-composer-plugin-composerlenientplugin' => $rules,
             ],
         ]);
     }
