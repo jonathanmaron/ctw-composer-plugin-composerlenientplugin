@@ -14,6 +14,7 @@ use Composer\Plugin\PluginInterface;
 use Composer\Plugin\PrePoolCreateEvent;
 use Composer\Semver\Constraint\ConstraintInterface;
 use Composer\Semver\Constraint\MultiConstraint;
+use Composer\Semver\Intervals;
 use Composer\Semver\VersionParser;
 
 /**
@@ -238,6 +239,16 @@ final class ComposerLenientPlugin implements PluginInterface, EventSubscriberInt
         }
 
         $link = $requires[$require];
+
+        // Idempotency guard: if the existing constraint already permits every
+        // version the allow constraint permits, there is nothing to widen.
+        // Without this, PRE_POOL_CREATE re-appends "|| allow" on every pool
+        // creation — notably during partial `composer update`/`require` runs that
+        // reuse the already-widened constraint from the lock — accumulating
+        // duplicate "|| ^8.5" segments (e.g. "^8.5 || ^8.5 || ^8.5").
+        if (Intervals::isSubsetOf($allow, $link->getConstraint())) {
+            return;
+        }
 
         $requires[$require] = new Link(
             $link->getSource(),
