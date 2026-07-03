@@ -240,7 +240,7 @@ final class ComposerLenientPluginTest extends TestCase
 
         $plugin->onPrePoolCreate($this->eventFor([$alias]));
 
-        self::assertStringContainsString('|| >=8.5', $real->getRequires()['php'] ->getPrettyConstraint());
+        self::assertStringContainsString('|| >=8.5', $real->getRequires()['php']->getPrettyConstraint());
     }
 
     /**
@@ -281,7 +281,7 @@ final class ComposerLenientPluginTest extends TestCase
 
         $plugin->onPrePoolCreate($this->eventFor([$package]));
 
-        self::assertStringContainsString('|| >=8.5', $package->getRequires()['php'] ->getPrettyConstraint());
+        self::assertStringContainsString('|| >=8.5', $package->getRequires()['php']->getPrettyConstraint());
     }
 
     /**
