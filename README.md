@@ -66,7 +66,7 @@ should — only the names you list are touched.
 
 ## Requirements
 
-- PHP >= 8.3
+- PHP >= 8.4
 - Composer 2 (`composer-plugin-api` `^2.0`)
 
 ## Installation
