@@ -28,7 +28,7 @@
     "require-dev": {
         "composer/composer": "^2.0",
         "ctw/ctw-qa": "^6.0",
-        "phpunit/phpunit": "^12.0 || ^13.0",
+        "phpunit/phpunit": "^13.3",
         "symfony/var-dumper": "^7.0 || ^8.0"
     },
     "minimum-stability": "stable",
