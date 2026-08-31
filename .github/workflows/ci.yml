@@ -68,15 +68,6 @@ jobs:
             # drop this.
             php_versions_canary: '["8.6"]'
 
-            # A composer plugin is loaded by Composer itself, so every
-            # Composer\\* symbol its source names is provided by the host
-            # rather than by a dependency. composer/composer is in require-dev
-            # for the tests and must not move to require — a plugin that
-            # requires Composer would install a second copy of it. The require
-            # checker has no way to express "the host provides this", so the
-            # thirteen symbols are whitelisted.
-            composer_requirements_config: 'composer-require-checker.json'
-
             # Backward compatibility cannot analyse this package. Its public
             # surface is defined by interfaces the host provides —
             # Composer\\Plugin\\PluginInterface and
@@ -98,7 +89,5 @@ jobs:
             # composer_validate: false
             # composer_normalize: false
             # composer_audit: false
-            # composer_requirements: false
-            # composer_unused: false
+            # composer_dependencies: false
             # composer_outdated: false
-            # infection: true
